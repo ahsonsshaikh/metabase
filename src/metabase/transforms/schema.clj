@@ -158,6 +158,14 @@
    [:table_dependencies    {:optional true} [:maybe [:sequential ::transform.table-dependency]]]
    [:run_trigger           {:optional true} [:maybe [:or :keyword :string]]]])
 
+(mr/def ::transform.definition
+  "What a Transform computes and where it writes, as a client writes it."
+  [:map {:closed true}
+   [:name        :string]
+   [:description {:optional true} [:maybe :string]]
+   [:source      ::transform-source]
+   [:target      ::transform-target]])
+
 (mr/def ::transform-dag-run
   "A TransformDagRun as selected from the app DB: every column of `:transform_dag_run`."
   [:merge

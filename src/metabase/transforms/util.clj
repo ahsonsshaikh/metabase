@@ -25,9 +25,11 @@
    [metabase.transforms.db :as transforms.db]
    [metabase.transforms.instrumentation :as transforms.instrumentation]
    [metabase.transforms.models.transform-run :as transform-run]
+   [metabase.transforms.schema :as transforms.schema]
    [metabase.transforms.settings :as transforms.settings]
    [metabase.util :as u]
-   [metabase.util.log :as log])
+   [metabase.util.log :as log]
+   [metabase.util.malli :as mu])
   (:import
    (java.sql SQLException)))
 
@@ -249,3 +251,18 @@
   (boolean
    (when-let [table-name (and (premium-features/any-transforms-enabled?) (:name table))]
      (str/starts-with? (u/lower-case-en table-name) driver.u/transform-temp-table-prefix))))
+
+(mu/defn ->definition :- ::transforms.schema/transform.definition
+  "What the saved `transform` computes and where it writes, as a client writes it."
+  [transform :- ::transforms.schema/transform]
+  (select-keys transform [:name :description :source :target]))
+
+(mu/defn source-readable? :- :boolean
+  "Whether the current user may read `transform`, saved or not: its kind of transform is enabled, and the user is a
+  superuser or a data analyst who may query its source."
+  [transform :- ::transforms.schema/transform.definition]
+  (boolean
+   (and (check-feature-enabled transform)
+        (or api/*is-superuser?*
+            (and (api/entitled-data-analyst?)
+                 (source-tables-readable? transform))))))

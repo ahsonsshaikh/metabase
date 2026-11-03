@@ -136,29 +136,34 @@
       (let [names (map :name expectations)]
         (or (empty? names) (apply distinct? names))))]])
 
-(mr/def ::transform-test
-  "A saved transform test: the transform it covers, the inputs that stand in for its source
-  tables, and the expectations checked against its output."
+(mr/def ::transform-test.definition
+  "A transform test as a client writes it, without the transform it covers."
   [:map {:closed true}
-   [:id           ms/PositiveInt]
-   [:entity_id    :string]
-   [:transform_id ::lib.schema.id/transform]
-   [:creator_id   ::lib.schema.id/user]
-   [:name         :string]
-   [:description  [:maybe :string]]
-   [:inputs       ::inputs]
-   [:expectations ::expectations]
-   [:created_at   ms/TemporalInstant]
-   [:updated_at   ms/TemporalInstant]])
-
-(mr/def ::transform-test.create
-  "What a client sends to create a transform test."
-  [:map {:closed true}
-   [:transform_id ::lib.schema.id/transform]
    [:name         ::lib.schema.common/non-blank-string]
    [:description  {:optional true} [:maybe :string]]
    [:inputs       ::inputs]
    [:expectations ::expectations]])
+
+(mr/def ::transform-test.create
+  "What a client sends to create a transform test."
+  [:merge
+   [:map {:closed true}
+    [:transform_id ::lib.schema.id/transform]]
+   ::transform-test.definition])
+
+(mr/def ::transform-test
+  "A saved transform test: the transform it covers, the inputs that stand in for its source
+  tables, and the expectations checked against its output."
+  [:merge
+   ::transform-test.definition
+   [:map {:closed true}
+    [:id           ms/PositiveInt]
+    [:entity_id    :string]
+    [:transform_id ::lib.schema.id/transform]
+    [:creator_id   ::lib.schema.id/user]
+    [:description  [:maybe :string]]
+    [:created_at   ms/TemporalInstant]
+    [:updated_at   ms/TemporalInstant]]])
 
 (mr/def ::transform-test.update
   "What a client sends to update a transform test. Omitted fields are left unchanged."

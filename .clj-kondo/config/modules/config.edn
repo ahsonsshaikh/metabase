@@ -4576,16 +4576,21 @@
            driver
            events
            lib
+           lib.be
            lib.schema
            models
+           permissions
            premium-features
+           query-permissions
            query-processor
+           remote-sync
            request
            revisions
            run-tracking
            sql-tools
            sql-tools.parsing
            task
+           transforms
            transforms.base
            util}
    :model-exports #{:model/TransformTest}
