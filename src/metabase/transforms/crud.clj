@@ -10,7 +10,6 @@
    [metabase.driver.util :as driver.u]
    [metabase.events.core :as events]
    [metabase.lib.types.isa :as lib.types.isa]
-   [metabase.models.interface :as mi]
    [metabase.transforms-base.interface :as transforms-base.i]
    [metabase.transforms-base.ordering :as transforms-base.ordering]
    [metabase.transforms-base.util :as transforms-base.u]
@@ -189,10 +188,10 @@
   [id body]
   (let [transform (t2/with-transaction [_]
                     ;; Cycle detection should occur within the transaction to avoid race
-                    (let [old (transforms.db/transform id)
+                    (let [old (api/read-check :model/Transform id)
                           new (merge old body)
                           target-fields #(-> % :target (select-keys [:schema :name]))]
-                      (api/check-403 (and (mi/can-write? old) (mi/can-write? new)))
+                      (api/update-check old body)
                       ;; we must validate on a full transform object
                       (check-feature-enabled! new)
                       (check-database-feature new)
