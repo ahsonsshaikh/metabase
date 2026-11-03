@@ -95,3 +95,53 @@
    [:last_notified_at  {:optional true} [:maybe ms/TemporalInstant]]
    [:updated_at        {:optional true} [:maybe ms/TemporalInstant]]
    [:download_jar_urls {:optional true} [:maybe ::download-jar-urls]]])
+
+;;; Health checks
+
+(mr/def ::health-check-id
+  "The id of a health check: one of the checks the Tech Doc lists."
+  [:enum
+   :supported-version :encryption-secret-key :session-secret-key :legacy-startup-encryption
+   :https-site-url :https-redirect :sso-login :scim-provisioning :mfa-required
+   :read-only-connections :all-users-permissions])
+
+(mr/def ::health-check-status
+  "The status of a health check, and of each of its items. `:unknown` means the check could not tell."
+  [:enum :pass :fail :unknown])
+
+(mr/def ::health-check-entity-type
+  "The kind of Metabase object a health check item is about."
+  [:enum :database :collection :group])
+
+(mr/def ::health-check-item
+  "One finding of a health check, as the API returns it: a status, an optional message, and the Metabase object it
+  is about, named as in task runs. `entity_id` is `\"root\"` for the root collection."
+  [:map {:closed true}
+   [:status      ::health-check-status]
+   [:message     {:optional true} :string]
+   [:entity_type {:optional true} ::health-check-entity-type]
+   [:entity_id   {:optional true} [:or ms/PositiveInt [:= "root"]]]
+   [:entity_name {:optional true} :string]])
+
+(mr/def ::health-check-docs
+  "Where the docs link of a health check points: the arguments of the frontend's `useDocsUrl(page, {anchor})`."
+  [:map {:closed true}
+   [:page   :string]
+   [:anchor {:optional true} :string]])
+
+(mr/def ::health-check
+  "One health check as the API returns it: the hardcoded texts, the items of the last run, and the status derived
+  from the items (any item fails → fail; else any item unknown → unknown; else pass). Every check has at least one
+  item, so the card always shows what was checked."
+  [:map {:closed true}
+   [:id               ::health-check-id]
+   [:severity         ::severity]
+   [:title            :string]
+   [:description      :string]
+   [:remediation      :string]
+   [:docs             ::health-check-docs]
+   [:requires_restart :boolean]
+   [:status           ::health-check-status]
+   [:running          :boolean]
+   [:checked_at       ms/TemporalInstant]
+   [:items            [:sequential {:min 1} ::health-check-item]]])
