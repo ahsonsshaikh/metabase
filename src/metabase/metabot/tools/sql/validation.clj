@@ -306,43 +306,47 @@
   (or (contains? system-schemas (some-> (or (:schema written) default-schema) u/lower-case-en))
       (some #(names-table? default-schema written %) known)))
 
-(defn- unresolved-table-names
-  "The sorted names, as the SQL of `query` writes them, of the tables that `query` reads and that do not resolve. A
-  table that exists but does not resolve is left out."
+(defn- table-names
+  "The sorted, distinct names of the table references `written`, as the SQL writes them."
+  [written]
+  (->> written (map written-name) distinct sort))
+
+(defn- unresolved-tables
+  "The names, as the SQL of `query` writes them, of the tables that `query` reads and that do not resolve.
+  `:missing` lists the tables that do not exist; `:existing` lists the tables that exist but do not resolve."
   [driver query]
   ;; The resolved specs carry the default schema of an unqualified name, so take the names from the raw references.
   (when-let [unresolved (seq (keep :unresolved-table (sql-tools/referenced-tables driver query)))]
     (let [{database-id :id :keys [default-schema]} (lib.metadata/database query)
           written (filter (fn [written] (some #(names-table? default-schema written %) unresolved))
                           (sql-tools/referenced-tables-raw driver (lib/raw-native-query query)))
-          known   (when (seq written) (known-tables database-id written))]
-      (->> written
-           (remove #(existing-table? default-schema known %))
-           (map written-name)
-           distinct
-           sort))))
+          known   (when (seq written) (known-tables database-id written))
+          {existing true missing false} (group-by #(boolean (existing-table? default-schema known %)) written)]
+      {:missing (table-names missing) :existing (table-names existing)})))
 
 (defn- field-warnings
-  "The sorted, distinct warnings for the field checker `errors`. A table alias in `table-names` is left out: its table
-  warning covers it."
+  "The sorted, distinct warnings for the field checker `errors`. A table alias with one of `table-names` is left
+  out: its table warning covers it, or its table exists."
   [errors table-names]
-  (->> errors
-       (remove #(and (= :missing-table-alias (keyword (:type %))) (contains? table-names (:name %))))
-       (keep error->warning)
-       distinct
-       sort))
+  (let [lower-names (into #{} (map u/lower-case-en) table-names)]
+    (->> errors
+         (remove #(and (= :missing-table-alias (keyword (:type %)))
+                       (contains? lower-names (some-> (:name %) u/lower-case-en))))
+         (keep error->warning)
+         distinct
+         sort)))
 
 (defn- field-check
-  "The check of the table and column references of `query` against `mp`. The warnings for tables that do not resolve
+  "The check of the table and column references of `query` against `mp`. The warnings for tables that do not exist
   come first. A checker failure gives `:status :failed` and no warnings."
   [mp query templated?]
   (let [driver (:engine (lib.metadata/database mp))
         errors (driver/validate-native-query-fields driver query)]
     (if (some #(checker-failure? templated? %) errors)
       {:status :failed, :warnings []}
-      (let [table-names (unresolved-table-names driver query)]
+      (let [{:keys [missing existing]} (unresolved-tables driver query)]
         {:status   :ran
-         :warnings (into (mapv table-warning table-names) (field-warnings errors (set table-names)))}))))
+         :warnings (into (mapv table-warning missing) (field-warnings errors (concat missing existing)))}))))
 
 (mr/def ::reference-check
   [:map

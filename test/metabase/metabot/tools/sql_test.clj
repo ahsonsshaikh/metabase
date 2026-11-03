@@ -786,6 +786,24 @@
         (is (str/starts-with? (first (warning-lines (create-sql "SELECT COUNT(*) FROM dbt_models.no_such_account")))
                               (table-warning "dbt_models.no_such_account")))))))
 
+(deftest create-sql-query-known-unsynced-table-star-no-warning-test
+  (testing "`SELECT *` from a table that exists but does not resolve gives no table or alias warning"
+    (mt/test-drivers #{:postgres}
+      (mt/with-current-user (mt/user->id :crowberto)
+        (testing "a system table"
+          (let [result (create-sql "SELECT * FROM information_schema.tables")]
+            (is (= [] (warning-lines result)))
+            (is (not (contains? result :non-terminal?)))))
+        (testing "a hidden synced table"
+          (mt/with-temp-vals-in-db :model/Table (mt/id :venues) {:visibility_type "hidden"}
+            (let [result (create-sql "SELECT * FROM venues")]
+              (is (= [] (warning-lines result)))
+              (is (not (contains? result :non-terminal?))))))
+        (testing "an unknown table keeps exactly one warning, the table warning"
+          (let [lines (warning-lines (create-sql "SELECT * FROM no_such_account"))]
+            (is (= 1 (count lines)))
+            (is (str/starts-with? (first lines) (table-warning "no_such_account")))))))))
+
 (deftest create-sql-query-unknown-column-warning-test
   (testing "a column the referenced model does not have is a warning, not an error"
     (mt/test-drivers #{:postgres}
