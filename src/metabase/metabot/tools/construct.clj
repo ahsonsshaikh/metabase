@@ -1096,7 +1096,9 @@
        diagnostics over every custom column / aggregation / filter
        ([[repr.repair/assert-editor-accepts-expressions!]]), then reject a temporal bucket
        sitting on a column that is not temporal
-       ([[repr.repair/assert-temporal-buckets-on-temporal-columns!]]), and reject a metric whose
+       ([[repr.repair/assert-temporal-buckets-on-temporal-columns!]]), reject automatic bins on a text
+       column or on a custom column with no known min and max
+       ([[repr.repair/assert-binning-on-numeric-columns!]]), and reject a metric whose
        definition can't run on the stage's source ([[incompatible-metrics]]). Any of these
        failing is a retryable `:agent-error?` - success on a query the editor rejects is
        BOT-1442.
@@ -1160,6 +1162,7 @@
             ;; argument against the same schema.
             _editor-ok    (repr.repair/assert-editor-accepts-expressions! pmbql-query repaired)
             _buckets-ok   (repr.repair/assert-temporal-buckets-on-temporal-columns! pmbql-query)
+            _bins-ok      (repr.repair/assert-binning-on-numeric-columns! pmbql-query)
             ;; Check sources after schema validation so an incompatible metric produces a retryable error before execution.
             _metrics-ok   (when-let [bad (incompatible-metrics mp pmbql-query)]
                             (let [{:keys [message usable-sources]} (incompatible-metric-explanation mp bad)]
