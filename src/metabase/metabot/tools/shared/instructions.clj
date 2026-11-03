@@ -130,3 +130,25 @@ Reference items using: [name](metabase://type/id)")
    "- Date/time literal syntax and formatting functions\n"
    "- NULL handling differences between dialects\n"
    "- Case sensitivity of identifiers\n"))
+
+(defn sql-reference-warnings-instructions
+  "Instructions that list possible bad table and column references in a constructed SQL query, or nil when there are
+  none."
+  [warnings]
+  (when (seq warnings)
+    (str "The query was saved, but checking its table and column references against the database metadata found "
+         "possible problems:\n"
+         (apply str (map #(str "- " % "\n") warnings))
+         "\n"
+         "This check can report false positives. Verify each reference against the table and field metadata you "
+         "have gathered, and fix any that are wrong. If the references are correct, keep the query: when you can "
+         "only respond with tool calls, send the same complete SQL again to accept it (after an edit, as a full "
+         "replacement of the query). If you are unsure, "
+         "ask the user (with `ask_for_sql_clarification` when that tool is available).")))
+
+(defn with-sql-reference-warnings
+  "`text` followed by [[sql-reference-warnings-instructions]] for `warnings`, or `text` when there are none."
+  [text warnings]
+  (if-let [warnings-text (sql-reference-warnings-instructions warnings)]
+    (str text "\n\n" warnings-text)
+    text))

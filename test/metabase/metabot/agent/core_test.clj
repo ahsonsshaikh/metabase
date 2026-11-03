@@ -10,6 +10,7 @@
    [metabase.analytics-interface.core :as analytics]
    [metabase.analytics.snowplow-test :as snowplow-test]
    [metabase.lib.core :as lib]
+   [metabase.lib.metadata :as lib.metadata]
    [metabase.lib.test-metadata :as meta]
    [metabase.llm.test-util :as llm.tu]
    [metabase.metabot.agent.core :as agent]
@@ -155,6 +156,17 @@
                                                 (assoc-in parts [1 :result :error] {:class :recoverable :code :test/failure})))))))
     (testing "finish-reason reports :terminal-tool"
       (is (= :terminal-tool (#'agent/finish-reason 0 20 terminal success))))))
+
+(deftest sql-reference-warning-keeps-turn-open-test
+  (let [terminal #{"create_sql_query"}
+        warned   [{:type :tool-input :id "a" :function "create_sql_query"}
+                  {:type :tool-output :id "a" :result {:output "Created, with warnings" :non-terminal? true}}]]
+    (testing "a successful terminal-tool call whose result is marked :non-terminal? does not end the turn"
+      (is (not (#'agent/terminal-tool-call? terminal warned)))
+      (is (#'agent/should-continue? 0 20 terminal warned)))
+    (testing "another successful terminal call in the same iteration still ends it"
+      (is (#'agent/terminal-tool-call? terminal (into warned [{:type :tool-input :id "b" :function "create_sql_query"}
+                                                              {:type :tool-output :id "b" :result {:output "ok"}}]))))))
 
 (defn- tools-registered-for-request!
   ([capabilities] (tools-registered-for-request! :internal capabilities))
@@ -449,6 +461,29 @@
         (testing "a database the user can query natively is not denied"
           (let [{:keys [parts]} (run-sql-turn! :sql native-db)]
             (is (= :terminal-tool (:finish-reason (last parts))))))))))
+
+(deftest sql-reference-warning-gets-one-more-iteration-test
+  (testing "in the :sql profile, SQL with a reference warning keeps the turn open, and the same SQL again ends it"
+    (mt/test-drivers #{:postgres}
+      (mt/with-current-user (mt/user->id :crowberto)
+        (let [mp (mt/metadata-provider)]
+          (mt/with-temp [:model/Card {card-id :id} {:type          :model
+                                                    :database_id   (mt/id)
+                                                    :dataset_query (lib/query mp (lib.metadata/table mp (mt/id :venues)))}]
+            (let [call                      (fn [id]
+                                              [{:type      :tool-input
+                                                :id        id
+                                                :function  "create_sql_query"
+                                                :arguments {:database_id (mt/id)
+                                                            :sql_query   (str "SELECT v.customer_name FROM {{#" card-id "}} AS v")
+                                                            :title       "Results"}}])
+                  {:keys [llm-calls parts]} (run-turn! :sql "Fix this SQL query" [(call "t1") (call "t2")]
+                                                       :context {:capabilities    ["permission:write_sql_queries"]
+                                                                 :user_is_viewing sql-editor-viewing})
+                  outputs                   (filter #(= :tool-output (:type %)) parts)]
+              (is (= 2 llm-calls))
+              (is (= [true nil] (map #(get-in % [:result :non-terminal?]) outputs)))
+              (is (= :terminal-tool (:finish-reason (last parts)))))))))))
 
 (deftest a-turn-survives-one-undeclared-failure-test
   (mt/with-current-user (mt/user->id :crowberto)

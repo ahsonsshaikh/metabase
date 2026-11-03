@@ -165,6 +165,16 @@
           (is (str/includes? output "Parser details: \"Invalid query: found '[[' or '{{' with no matching"))
           (is (not (str/includes? output "this edit did not change"))))))))
 
+(deftest document-construct-sql-chart-reference-test
+  (testing "a reference to a card that does not exist gets the SQL tools' recoverable error, and no draft"
+    (mt/with-current-user (mt/user->id :crowberto)
+      (let [result (invoke-document-tool "document_construct_sql_chart"
+                                         (assoc sql-chart-args
+                                                :database_id (mt/id)
+                                                :sql (str "SELECT * FROM {{#" Integer/MAX_VALUE "}} AS v")))]
+        (is (= {:class :recoverable :code ::sql.common/missing-references} (:error result)))
+        (is (nil? (:structured-output result)))))))
+
 (deftest document-construct-sql-chart-blank-sql-test
   (testing "blank SQL gets the SQL tools' recovery step instead of a draft"
     (mt/with-current-user (mt/user->id :crowberto)

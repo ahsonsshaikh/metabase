@@ -1074,6 +1074,30 @@
   [ids :- [:sequential ms/PositiveInt]]
   (t2/select [:model/Card :id :collection_id :archived :document_id] :id [:in ids]))
 
+(mu/defn database-card-read-rows
+  "The ID, Collection ID, and Document ID of the Cards of `database-id` with `ids`: the columns that `mi/can-read?`
+  reads."
+  [database-id :- ::lib.schema.id/database
+   ids         :- [:sequential ms/PositiveInt]]
+  (t2/select [:model/Card :id :collection_id :document_id] :id [:in ids] :database_id [:auto/param database-id]))
+
+(mu/defn snippet-read-rows
+  "The ID and Collection ID of the NativeQuerySnippets with `ids`: the columns that `mi/can-read?` reads."
+  [ids :- [:sequential ms/PositiveInt]]
+  (t2/select [:model/NativeQuerySnippet :id :collection_id] :id [:in ids]))
+
+(mu/defn database-table-names
+  "The schema and name of each Table of `database-id` whose name case-insensitively is one of `table-names`, whatever
+  its `active` flag and visibility."
+  [database-id :- ::lib.schema.id/database
+   table-names :- [:sequential :string]]
+  (t2/select [:model/Table :schema :name]
+             ;; Schema and name are sync's values: users cannot set them.
+             {:from  [(warehouse-schema-overlay/table-query {:user-settings? false})]
+              :where [:and
+                      [:= :db_id [:auto/param database-id]]
+                      [:in [:lower :name] (into #{} (map u/lower-case-en) table-names)]]}))
+
 (mu/defn dashboard-curation-rows
   "The ID, Collection ID, and archived flag of the Dashboards with `ids`."
   [ids :- [:sequential ms/PositiveInt]]

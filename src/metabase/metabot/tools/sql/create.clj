@@ -67,10 +67,8 @@
   (validate-database-access database-id)
   (metabot.tools.sql.common/check-nonblank-sql! sql)
 
-  (let [dialect (metabot.tools.sql.validation/database-id->dialect database-id)
-
-        {:keys [valid? transpiled-sql] :as validation-result}
-        (metabot.tools.sql.validation/validate-sql dialect sql)]
+  (let [{:keys [valid? transpiled-sql] :as validation-result}
+        (metabot.tools.sql.validation/validate-database-sql database-id sql)]
     (merge {:validation-result validation-result}
            (when valid?
              (let [;; Create the in-memory query structure
